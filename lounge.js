@@ -40,7 +40,7 @@ lounge.getMatches = function(callback) {
 
                     const BOx = parseInt($(this).find('.match').find('.format').text().substr(2));
 
-                    var matchLogo = $(this).find('.match').css()['background-image'];
+                    let matchLogo = $(this).find('.match').css()['background-image'];
                     matchLogo = matchLogo.substr(1, matchLogo.length - 2);
 
                     let winner = 0;
