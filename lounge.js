@@ -1,191 +1,156 @@
-var cheerio = require('cheerio'),
-	request = require('request');
+const cheerio = require('cheerio');
+const request = require('request');
 
-var lounge = {};
+const lounge = {};
 
 lounge.url = 'http://csgolounge.com';
 
-lounge.getMatches = function(callback){
-	if(lounge.matches){
-		if(callback){
-			callback(lounge.matches);
-		}
-	} else{
-		request(lounge.url, function(error, response, html){
-			if(!error){
-				lounge.matches = [];
-				var $ = cheerio.load(html);
+lounge.getMatches = function(callback) {
+    if (lounge.matches) {
+        if (callback) {
+            callback(lounge.matches);
+        }
+    } else {
+        request(lounge.url, function(error, response, html) {
+            if (!error) {
+                lounge.matches = [];
+                const $ = cheerio.load(html);
 
-				$('#bets > .matchmain').has(".matchleft").each(function(i, elem) {
-					var time = $(this).find('.matchheader').find('.whenm').contents().first().text();
+                $('#bets > .matchmain').has(".matchleft").each(function(i, elem) {
+                    const time = $(this).find('.matchheader').find('.whenm').find('.match-time').text();
+                    const timestamp = Math.round((new Date(time)).getTime() / 1000);
 
-					var $teams = $(this).find('.team').first().parent().parent().children();
+                    const $teams = $(this).find('.matchleft').children();//.parent().parent().children();
 
-					var id = parseInt($teams.parent().attr('href').replace('match?m=', ''));
+                    const id = parseInt($teams.attr('href').replace('match?m=', ''));
 
-					var $team1 = $teams.first().find('.teamtext').children();
-					var $team2 = $teams.last().find('.teamtext').children();
-					
-					var team1 = {
-						name: $team1.first().text(),
-						percentage: $team1.last().text()
-					};
-					var team2 = {
-						name: $team2.first().text(),
-						percentage: $team2.last().text()
-					};
-					
-					// added by derpierre65
-					var matchType = parseInt($(this).find('.match').find('.format').text().substr(2));
-					var teamLogo1 = $team1.parent().parent().find('.team').css()['background'];
-					var teamLogo2 = $team2.parent().parent().find('.team').css()['background'];
-					var winner = 0;
-					var matchLogo= $(this).find('.match').css()['background-image'];
-					matchLogo = matchLogo.substr(1, matchLogo.length-2);
-					
-					if ( $teams.first().find('.team img').length > 0 ) winner = 1;
-					else if ( $teams.last().find('.team img').length > 0 ) winner = 2;
-					
-					var timestamp = Math.round((new Date()).getTime() / 1000),
-						test = time.split(' '),
-						check = time.split(test[0]+' ');
-					
-					switch(check[1]) {
-						case 'seconds from now': case 'second from now':
-							timestamp += test[0];
-						break;
-						case 'seconds ago': case 'second ago':
-							timestamp -= test[0];
-						break;
-						case 'minutes from now': case 'minute from now':
-							timestamp += test[0] * 60;
-						break;
-						case 'minutes ago': case 'minute ago':
-							timestamp -= test[0] * 60;
-						break;
-						case 'hours ago': case 'hour ago':
-							timestamp -= test[0] * 3600;
-						break;
-						case 'hours from now': case 'hour from now':
-							timestamp += test[0] * 3600;
-						break;
-						case 'days ago': case 'day ago':
-							timestamp -= test[0] * 86400;
-						break;
-						case 'days from now': case 'day from now':
-							timestamp += test[0] * 86400;
-						break;
-						default:
-							lounge.log('time not found:', time);
-					}
-					
-					lounge.matches.push({
-						id: id,
-						time: time,
-						winner: winner,
-						timestamp: timestamp,
-						type: matchType,
-						matchLogo: matchLogo.substr(4, matchLogo.length-5),
-						matchname: $(this).find('.matchheader').find('.eventm').text(),
-						teams: [team1, team2],
-						teamLogos: [teamLogo1.substr(5, teamLogo1.length-7), teamLogo2.substr(5, teamLogo2.length-7)]
-					});
-				});
+                    const $team1 = $teams.children().first().find('.teamtext').children();
+                    const $team2 = $teams.children().last().find('.teamtext').children();
 
-				if(callback){
-					callback(lounge.matches);
-				}
-			}
-		});
-	}
+                    const team1 = {
+                        name: $team1.first().text(),
+                        percentage: $team1.last().text(),
+                        logo: $teams.children().first().children().attr('src')
+                    };
+                    const team2 = {
+                        name: $team2.first().text(),
+                        percentage: $team2.last().text(),
+                        logo: $teams.children().last().children().attr('src')
+                    };
+
+                    const BOx = parseInt($(this).find('.match').find('.format').text().substr(2));
+
+                    var matchLogo = $(this).find('.match').css()['background-image'];
+                    matchLogo = matchLogo.substr(1, matchLogo.length - 2);
+
+                    let winner = 0;
+                    if ($teams.children().first().children().length === 3) winner = 1;
+                    else if ($teams.children().last().children().length === 3) winner = 2;
+
+                    let status = 'COMPLETED';
+                    if (winner === 0) {
+                        status = $(this).find('.matchheader').find('.whenm').children().eq(1) === ' LIVE' ? 'LIVE' : 'UPCOMMING';
+                    }
+
+                    lounge.matches.push({
+                        id: id,
+                        status: status,
+                        time: time,
+                        winner: winner,
+                        timestamp: timestamp,
+                        BO: BOx,
+                        matchLogo: matchLogo.substr(4, matchLogo.length - 5),
+                        matchname: $(this).find('.matchheader').find('.eventm').text(),
+                        teams: { home: team1, away: team2 }
+                    });
+                });
+
+                if (callback) {
+                    callback(lounge.matches);
+                }
+            }
+        });
+    }
 };
 
 lounge.matchesDetails = [];
 
-lounge.getMatch = function(matchId, callback){
-	if(lounge.matchesDetails[matchId]){
-		if(callback){
-			callback(lounge.matchesDetails[matchId]);
-		}
-	} else{
-		request(lounge.url + '/match?m=' + matchId, function(error, response, html){
-			if(!error){
+lounge.getMatch = function(matchId, callback) {
+    if (lounge.matchesDetails[matchId]) {
+        if (callback) {
+            callback(lounge.matchesDetails[matchId]);
+        }
+    } else {
+        request(lounge.url + '/match?m=' + matchId, function(error, response, html) {
+            if (!error) {
 
-				var $ = cheerio.load(html);
+                const $ = cheerio.load(html);
 
-				$teams = $('main section').first().find('a');
+                let winner = 0;
 
-				$team1 = $teams.eq(0);
-				$team2 = $teams.eq(1);
+                const $teams = $('.match-box .match-trapezoid-wrapper');
+                if ($teams.find('.match-trapezoid-winner-left').length) {
+                    winner = 1;
+                }
+                if ($teams.find('.match-trapezoid-winner-right').length) {
+                    winner = 2;
 
-				team1Name = $team1.find('b').text();
-				team2Name = $team2.find('b').text();
+                }
+                const team1Name = $('.team-a').find('.match-team').find('.match-team-name').text();
+                const team2Name = $('.team-b').find('.match-team').find('.match-team-name').text();
 
-				var winner;
+                const team1 = {
+                    name: team1Name
+                };
 
-				if(team1Name.indexOf("(win)") > -1){
-					team1Name = team1Name.replace(' (win)', '');
-					winner = 0;
-				}else if(team2Name.indexOf("(win)") > -1){
-					team2Name = team2Name.replace(' (win)', '');
-					winner = 1;
-				}
+                const team2 = {
+                    name: team2Name
+                };
 
-				var team1 = {
-					name: team1Name
-				};
+                const match = {
+                    id: matchId,
+                    winner: winner,
+                    teams: [team1, team2]
+                };
 
-				var team2 = {
-					name: team2Name
-				};
-
-				var match = {};
-				match.id = matchId;
-				match.teams = [team1, team2];
-				if (winner !== undefined){
-					match.winner = winner;
-				}
-
-				lounge.matchesDetails[matchId] = match;
-
-				if(callback){
-					callback(lounge.matchesDetails[matchId]);
-				}
-			}
-		});
-	}
-}
+                lounge.matchesDetails[matchId] = match;
+                if (callback) {
+                    callback(lounge.matchesDetails[matchId]);
+                }
+            }
+        });
+    }
+};
 
 lounge.watchers = [];
 
-lounge.watchMatch = function(matchId, callback){
-	lounge.log('Now watching match #' + matchId);
-	lounge.watchers[matchId] = setInterval(function(){
-		lounge.getMatch(matchId, function(match){
-			if(callback){
-				callback(match);
-			}
-		});
-	}, 1000 * 10); // Every 10 sec
-}
+lounge.watchMatch = function(matchId, callback) {
+    lounge.log('Now watching match #' + matchId);
+    lounge.watchers[matchId] = setInterval(function() {
+        lounge.getMatch(matchId, function(match) {
+            if (callback) {
+                callback(match);
+            }
+        });
+    }, 1000 * 10); // Every 60 sec
+};
 
-lounge.stopWatchMatch = function(matchId){
-	clearInterval(lounge.watchers[matchId]);
-	lounge.log('Stopped watching match #' + matchId);
-}
+lounge.stopWatchMatch = function(matchId) {
+    clearInterval(lounge.watchers[matchId]);
+    lounge.log('Stopped watching match #' + matchId);
+};
 
-lounge.onWin = function(matchId, callback){
-	lounge.watchMatch(matchId, function(match){
-		if(match.winner !== undefined){
-			lounge.log(match.teams[match.winner].name + ' won match #' + matchId);
-			lounge.stopWatchMatch(matchId);
-			callback(match);
-		}
-	});
-}
+lounge.onWin = function(matchId, callback) {
+    lounge.watchMatch(matchId, function(match) {
+        if (match.winner !== 0) {
+            lounge.stopWatchMatch(matchId);
+            callback(match);
+        }
+    });
+};
 
-lounge.log = function(message){
-	console.log('[lounge] ' + message);
-}
+lounge.log = function(message) {
+    console.log('[lounge] ' + message);
+};
 
 module.exports = lounge;
